@@ -4,102 +4,580 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>e稲沢 業務報告作成BOT</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <!-- Babel for browser JSX/TS compilation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
     <style>
-        body { font-family: 'Noto Sans JP', sans-serif; background-color: #f1f5f9; }
-        .card { background: white; border-radius: 1.5rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
-        input, textarea { border: 2px solid #e2e8f0; border-radius: 0.75rem; padding: 0.75rem; outline: none; transition: border-color 0.2s; }
-        input:focus, textarea:focus { border-color: #4f46e5; }
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: #f8fafc;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.1);
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
+
+    <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.0.0",
+    "react-dom/client": "https://esm.sh/react-dom@^19.0.0/client",
+    "@heroicons/react/24/outline": "https://esm.sh/@heroicons/react@^2.1.0/24/outline",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "@heroicons/react/": "https://esm.sh/@heroicons/react@^2.2.0/"
+  }
+}
+</script>
 </head>
-<body class="p-4 md:p-8">
-    <div class="max-w-6xl mx-auto flex flex-col lg:flex-row gap-8">
-        <div class="lg:w-1/2 space-y-6">
-            <div class="card p-6">
-                <h1 class="text-2xl font-black text-indigo-900 mb-6 italic">業務報告作成BOT</h1>
-                <div class="grid grid-cols-2 gap-4 mb-6">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 mb-1">部署名</label>
-                        <input type="text" id="dept" value="e稲沢" class="w-full font-bold">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 mb-1">日付</label>
-                        <input type="date" id="date" class="w-full">
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react,typescript">
+        import React, { useState, useEffect, useMemo, useCallback } from 'react';
+        import ReactDOM from 'react-dom/client';
+        import { 
+            ClipboardDocumentCheckIcon, 
+            TrashIcon, 
+            ArrowPathIcon, 
+            DocumentTextIcon, 
+            BuildingOfficeIcon, 
+            InformationCircleIcon, 
+            CloudArrowUpIcon, 
+            CheckIcon,
+            PlusIcon,
+            MinusIcon 
+        } from '@heroicons/react/24/outline';
+
+        // --- 定数定義 ---
+        const INQUIRY_LABELS = {
+            newspaper: '新聞折込',
+            posting: 'ポスティング',
+            flyer: 'チラシ設置',
+            crayon: 'クレヨン',
+            intro: '紹介',
+            hp: 'ホームページ',
+            litalico: 'リタリコ仕事ナビ',
+            previous: '以前問い合わせ者',
+            unknown: '不明',
+        };
+
+        const INITIAL_INQUIRY = {
+            newspaper: 0,
+            posting: 0,
+            flyer: 0,
+            crayon: 0,
+            intro: 0,
+            hp: 0,
+            litalico: 0,
+            previous: 0,
+            unknown: 0,
+        };
+
+        const INITIAL_REPORT = {
+            departmentName: 'e稲沢',
+            reportDate: new Date().toISOString().split('T')[0],
+            contractCount: 0,
+            contractScheduled: 0,
+            intakeScheduled: 0,
+            userCount: 0,
+            intakeCount: 0,
+            newUsers: 0,
+            generalRemarks: '',
+            distributionRemarks: '',
+            inquiryRemarks: '',
+            postingDaily: 0,
+            flyerDaily: 0,
+            inquiryDaily: { ...INITIAL_INQUIRY },
+        };
+
+        const INITIAL_CUMULATIVE = {
+            month: (new Date().getMonth() + 1).toString(),
+            postingTotal: 0,
+            flyerTotal: 0,
+            inquiryTotal: { ...INITIAL_INQUIRY },
+        };
+
+        const REMARKS_PLACEHOLDER = "詳細・備考があれば記入してください";
+
+        // --- コンポーネント ---
+        const UniversalInput = ({ value, onChange, unit, label, theme = 'light' }) => {
+            const [tempValue, setTempValue] = useState(value.toString());
+
+            useEffect(() => {
+                setTempValue(value.toString());
+            }, [value]);
+
+            const handleInputChange = (e) => {
+                const val = e.target.value;
+                setTempValue(val);
+                if (val === '') {
+                    onChange(0);
+                } else {
+                    const num = parseInt(val.replace(/,/g, ''), 10);
+                    if (!isNaN(num)) onChange(num);
+                }
+            };
+
+            const isIndigo = theme === 'indigo';
+
+            return (
+                <div className="space-y-1 w-full">
+                    {label && <label className={`text-[10px] font-black uppercase tracking-widest block mb-1 ${isIndigo ? 'text-indigo-800' : 'text-slate-500'}`}>{label}</label>}
+                    <div className="flex items-stretch gap-0.5 group h-12">
+                        <button 
+                            onClick={() => onChange(Math.max(0, value - 1))}
+                            className={`px-4 rounded-l-xl border-2 transition-all active:scale-95 flex items-center justify-center shrink-0 ${
+                                isIndigo ? 'bg-indigo-100 border-indigo-200 text-indigo-700 hover:bg-indigo-200' : 'bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200'
+                            }`}
+                        >
+                            <MinusIcon className="w-5 h-5" />
+                        </button>
+                        <div className="relative flex-1 min-w-0">
+                            <input 
+                                type="number" 
+                                value={tempValue} 
+                                onChange={handleInputChange} 
+                                className={`w-full h-full border-y-2 px-3 text-center font-black outline-none transition-colors text-xl leading-none ${
+                                    isIndigo 
+                                        ? 'border-indigo-200 bg-white text-indigo-900 focus:border-indigo-600 focus:bg-indigo-50/30' 
+                                        : 'border-slate-200 bg-white text-slate-900 focus:border-indigo-600 focus:bg-slate-50/30'
+                                }`}
+                            />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-black opacity-30 pointer-events-none select-none uppercase">
+                                {unit}
+                            </span>
+                        </div>
+                        <button 
+                            onClick={() => onChange(value + 1)}
+                            className={`px-4 rounded-r-xl border-2 transition-all active:scale-95 flex items-center justify-center shrink-0 ${
+                                isIndigo ? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700' : 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700 shadow-sm'
+                            }`}
+                        >
+                            <PlusIcon className="w-5 h-5" />
+                        </button>
                     </div>
                 </div>
+            );
+        };
 
-                <div class="space-y-4">
-                    <h2 class="font-bold border-l-4 border-indigo-600 pl-2">本日の数値</h2>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div><label class="block text-xs font-bold text-slate-500">契約人数</label><input type="number" id="contract" value="0" class="w-full"></div>
-                        <div><label class="block text-xs font-bold text-slate-500">利用人数</label><input type="number" id="users" value="0" class="w-full"></div>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 mb-1">備考</label>
-                        <textarea id="remarks" class="w-full h-24" placeholder="備考を入力してください"></textarea>
-                    </div>
-                </div>
-                
-                <button onclick="generateReport()" class="w-full mt-6 bg-indigo-600 text-white font-black py-4 rounded-xl hover:bg-indigo-700 transition-all shadow-lg active:scale-95">
-                    レポートを生成
-                </button>
-            </div>
-        </div>
+        const App = () => {
+            const [report, setReport] = useState(() => {
+                const savedDept = localStorage.getItem('einazawa_dept');
+                const base = JSON.parse(JSON.stringify(INITIAL_REPORT));
+                if (savedDept) base.departmentName = savedDept;
+                return base;
+            });
 
-        <div class="lg:w-1/2">
-            <div class="bg-slate-900 rounded-[2rem] p-8 h-full min-h-[500px] shadow-2xl relative">
-                <div class="flex justify-between items-center mb-4 border-b border-slate-700 pb-4">
-                    <span class="text-xs font-bold text-slate-400 tracking-widest uppercase">Preview</span>
-                    <button onclick="copyText()" id="copyBtn" class="bg-emerald-600 text-white px-6 py-2 rounded-full font-bold text-sm hover:bg-emerald-500 transition-all">
-                        コピー
-                    </button>
-                </div>
-                <pre id="output" class="text-emerald-400 font-mono whitespace-pre-wrap text-sm leading-relaxed"></pre>
-            </div>
-        </div>
-    </div>
+            const [cumulative, setCumulative] = useState(() => {
+                const saved = localStorage.getItem('einazawa_cumulative');
+                return saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(INITIAL_CUMULATIVE));
+            });
 
-    <script>
-        // 日付の初期値を今日に設定
-        document.getElementById('date').value = new Date().toISOString().split('T')[0];
+            const [isCopied, setIsCopied] = useState(false);
+            const [pasteText, setPasteText] = useState('');
+            const [showPasteArea, setShowPasteArea] = useState(false);
+            const [parseStatus, setParseStatus] = useState('idle');
+            const [highlight, setHighlight] = useState(false);
 
-        function generateReport() {
-            const dept = document.getElementById('dept').value;
-            const date = document.getElementById('date').value;
-            const contract = document.getElementById('contract').value;
-            const users = document.getElementById('users').value;
-            const remarks = document.getElementById('remarks').value;
+            useEffect(() => {
+                localStorage.setItem('einazawa_cumulative', JSON.stringify(cumulative));
+                localStorage.setItem('einazawa_dept', report.departmentName);
+            }, [cumulative, report.departmentName]);
 
-            const text = `${dept} (${date})
+            const handleReportChange = (field, value) => {
+                setReport(prev => ({ ...prev, [field]: value }));
+            };
 
-【契約人数】　　 ${contract}人
-【利用人数】　　 ${users}人
+            const handleInquiryChange = (type, field, value) => {
+                if (type === 'daily') {
+                    setReport(prev => ({
+                        ...prev,
+                        inquiryDaily: { ...prev.inquiryDaily, [field]: value }
+                    }));
+                } else {
+                    setCumulative(prev => ({
+                        ...prev,
+                        inquiryTotal: { ...prev.inquiryTotal, [field]: value }
+                    }));
+                }
+            };
+
+            const handleCumulativeFieldChange = (field, value) => {
+                setCumulative(prev => ({ ...prev, [field]: value }));
+            };
+
+            const resetAll = () => {
+                if (window.confirm('【確認】入力をすべてリセットしますか？')) {
+                    const base = JSON.parse(JSON.stringify(INITIAL_REPORT));
+                    base.departmentName = report.departmentName;
+                    setReport(base);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            };
+
+            const handleParsePaste = () => {
+                if (!pasteText.trim()) return;
+                try {
+                    const newReport = JSON.parse(JSON.stringify(report));
+                    const newCumulative = JSON.parse(JSON.stringify(cumulative));
+                    const cleanText = pasteText.replace(/\r\n/g, '\n').trim();
+                    
+                    const parts = cleanText.split(/[-=*]{10,}/);
+                    const topSection = parts[0];
+                    const bottomSection = parts.length > 1 ? parts[1] : '';
+
+                    const extractVal = (label, text) => {
+                        const regex = new RegExp(`${label}[\\s　：:]*([\\d,]+)`, 'm');
+                        const match = text.match(regex);
+                        return match ? parseInt(match[1].replace(/,/g, ''), 10) : null;
+                    };
+
+                    const findAfterHeading = (heading, targetLabel, fullText) => {
+                        const headingIdx = fullText.indexOf(heading);
+                        if (headingIdx === -1) return null;
+                        let subText = fullText.substring(headingIdx + heading.length);
+                        const nextHeadingIdx = subText.indexOf('【');
+                        if (nextHeadingIdx !== -1) subText = subText.substring(0, nextHeadingIdx);
+                        return extractVal(targetLabel, subText);
+                    };
+
+                    // パース処理
+                    newReport.contractCount = extractVal('【契約人数】', topSection) ?? newReport.contractCount;
+                    newReport.contractScheduled = extractVal('【契約予定者】', topSection) ?? newReport.contractScheduled;
+                    newReport.intakeScheduled = extractVal('【インテーク予定】', topSection) ?? newReport.intakeScheduled;
+                    newReport.userCount = extractVal('【利用人数】', topSection) ?? newReport.userCount;
+                    newReport.intakeCount = extractVal('【インテーク】', topSection) ?? newReport.intakeCount;
+                    newReport.newUsers = extractVal('【利用開始者】', topSection) ?? newReport.newUsers;
+
+                    const pTotal = findAfterHeading('【ポスティング枚数】', '\\d+月合計', cleanText);
+                    if (pTotal !== null) newCumulative.postingTotal = pTotal;
+
+                    const fTotal = findAfterHeading('【チラシ設置】', '\\d+月合計', cleanText);
+                    if (fTotal !== null) newCumulative.flyerTotal = fTotal;
+
+                    Object.keys(INQUIRY_LABELS).forEach((key) => {
+                        const label = INQUIRY_LABELS[key];
+                        const searchPool = bottomSection || cleanText;
+                        const regex = new RegExp(`${label}[\\s　：:]*([\\d,]+)`, 'g');
+                        let m;
+                        let lastMatchVal = null;
+                        while ((m = regex.exec(searchPool)) !== null) {
+                            lastMatchVal = parseInt(m[1].replace(/,/g, ''), 10);
+                        }
+                        if (lastMatchVal !== null) {
+                            newCumulative.inquiryTotal[key] = lastMatchVal;
+                        }
+                    });
+
+                    const genMatch = cleanText.match(/【備考】\n([\s\S]*?)\n【/);
+                    if (genMatch) newReport.generalRemarks = genMatch[1].trim();
+                    const distMatch = cleanText.match(/【配布・設置 備考】\n([\s\S]*?)\n【/);
+                    if (distMatch) newReport.distributionRemarks = distMatch[1].trim();
+                    const inqMatch = cleanText.match(/【問い合わせ 備考】\n([\s\S]*?)$/);
+                    if (inqMatch) newReport.inquiryRemarks = inqMatch[1].trim();
+
+                    const monthMatch = cleanText.match(/(\d+)月合計/);
+                    if (monthMatch) newCumulative.month = monthMatch[1];
+
+                    setReport(newReport);
+                    setCumulative(newCumulative);
+                    setParseStatus('success');
+                    setHighlight(true);
+                    setTimeout(() => {
+                        setShowPasteArea(false);
+                        setParseStatus('idle');
+                        setPasteText('');
+                        setHighlight(false);
+                    }, 2000);
+                } catch (e) {
+                    console.error('Parse error:', e);
+                    setParseStatus('error');
+                }
+            };
+
+            const calculateTotal = useCallback((prevTotal, currentDaily) => {
+                return (Number(prevTotal) || 0) + (Number(currentDaily) || 0);
+            }, []);
+
+            const generatedReport = useMemo(() => {
+                const calcPostingTotal = calculateTotal(cumulative.postingTotal, report.postingDaily);
+                const calcFlyerTotal = calculateTotal(cumulative.flyerTotal, report.flyerDaily);
+                const monthStr = cumulative.month || '12';
+
+                const inquirySection = (data) => 
+                    Object.keys(INQUIRY_LABELS).map(key => 
+                        `${INQUIRY_LABELS[key].padEnd(8, '　')} ${data[key] ?? 0}件`
+                    ).join('\n');
+
+                const totalInquiries = {};
+                Object.keys(INQUIRY_LABELS).forEach((key) => {
+                    totalInquiries[key] = calculateTotal(cumulative.inquiryTotal[key], report.inquiryDaily[key]);
+                });
+
+                const displayDate = report.reportDate ? ` (${report.reportDate})` : '';
+
+                return `${report.departmentName}${displayDate}
+
+【契約人数】　　 ${report.contractCount ?? 0}人
+
+【契約予定者】　 ${report.contractScheduled ?? 0}人 
+
+【インテーク予定】 ${report.intakeScheduled ?? 0}人
+
+【利用人数】　　 ${report.userCount ?? 0}人
+
+【インテーク】　 ${report.intakeCount ?? 0}件
+
+【利用開始者】　 ${report.newUsers ?? 0}人
 
 【備考】
-${remarks || '特になし'}
+${report.generalRemarks || ''}
 
-本日もお疲れ様でした。`;
+【ポスティング枚数】
+ポスティング数　 ${report.postingDaily ?? 0}枚
+${monthStr}月合計　　　　 ${calcPostingTotal}枚
 
-            document.getElementById('output').textContent = text;
-        }
+【チラシ設置】　 ${report.flyerDaily ?? 0}件
+${monthStr}月合計　　　　 ${calcFlyerTotal}件
 
-        function copyText() {
-            const text = document.getElementById('output').textContent;
-            if (!text) return;
-            navigator.clipboard.writeText(text).then(() => {
-                const btn = document.getElementById('copyBtn');
-                btn.textContent = 'コピー完了！';
-                btn.classList.replace('bg-emerald-600', 'bg-indigo-500');
-                setTimeout(() => {
-                    btn.textContent = 'コピー';
-                    btn.classList.replace('bg-indigo-500', 'bg-emerald-600');
-                }, 2000);
-            });
-        }
+【配布・設置 備考】
+${report.distributionRemarks || ''}
 
-        // 起動時に一度実行
-        generateReport();
+【問合せ】
+${inquirySection(report.inquiryDaily)}
+--------------------------------------------
+${monthStr}月合計
+
+${inquirySection(totalInquiries)}
+
+【問い合わせ 備考】
+${report.inquiryRemarks || ''}`;
+            }, [report, cumulative, calculateTotal]);
+
+            const copyToClipboard = () => {
+                navigator.clipboard.writeText(generatedReport);
+                setIsCopied(true);
+                setTimeout(() => setIsCopied(false), 2000);
+            };
+
+            return (
+                <div className="min-h-screen pb-12 bg-slate-100">
+                    <header className="bg-indigo-900 text-white py-6 px-4 shadow-xl mb-8 sticky top-0 z-50">
+                        <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+                            <div className="flex items-center gap-3">
+                                <BuildingOfficeIcon className="w-10 h-10" />
+                                <h1 className="text-2xl font-black tracking-tighter uppercase italic">業務報告作成BOT</h1>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <button onClick={resetAll} className="flex items-center gap-2 bg-indigo-800 hover:bg-slate-700 px-4 py-2 rounded-xl transition-all text-sm font-bold active:scale-95 border border-indigo-700 shadow-sm">
+                                    <TrashIcon className="w-5 h-5" />リセット
+                                </button>
+                                <button onClick={copyToClipboard} className={`flex items-center gap-2 px-8 py-2.5 rounded-xl font-black transition-all shadow-lg active:scale-95 ${isCopied ? 'bg-emerald-600 text-white scale-105' : 'bg-white text-indigo-900 hover:bg-indigo-50'}`}>
+                                    <ClipboardDocumentCheckIcon className="w-6 h-6" />{isCopied ? 'コピー完了！' : 'レポートをコピー'}
+                                </button>
+                            </div>
+                        </div>
+                    </header>
+
+                    <main className="max-w-6xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        <div className="lg:col-span-7 space-y-8">
+                            {/* 基本情報 */}
+                            <div className="bg-white p-8 rounded-3xl shadow-md border-2 border-indigo-50 grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div className="space-y-2">
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest block">部署名</label>
+                                    <input type="text" value={report.departmentName} onChange={(e) => handleReportChange('departmentName', e.target.value)} className="w-full text-xl font-bold border-2 border-slate-200 rounded-xl px-4 py-3 focus:border-indigo-500 outline-none bg-slate-50 text-slate-900 shadow-sm" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest block">報告日付</label>
+                                    <input type="date" value={report.reportDate} onChange={(e) => handleReportChange('reportDate', e.target.value)} className="w-full text-xl font-bold border-2 border-slate-300 rounded-xl px-4 py-3 focus:border-indigo-500 outline-none bg-white text-slate-900 shadow-sm" />
+                                </div>
+                            </div>
+
+                            {/* インポート */}
+                            <div className="bg-indigo-50 border-2 border-dashed border-indigo-200 p-8 rounded-3xl shadow-sm relative group">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-indigo-900 font-black flex items-center gap-2 text-lg">
+                                        <DocumentTextIcon className="w-7 h-7" /> 1. 前日のレポートから読み込む
+                                    </h3>
+                                    <button onClick={() => setShowPasteArea(!showPasteArea)} className="bg-indigo-700 text-white text-sm font-black px-6 py-2.5 rounded-full shadow-md hover:bg-indigo-800 active:scale-95 transition-all">
+                                        {showPasteArea ? '閉じる' : 'ここを開いてペースト'}
+                                    </button>
+                                </div>
+                                {showPasteArea && (
+                                    <div className="space-y-4 mt-6 animate-fade-in">
+                                        <p className="text-xs text-indigo-700 font-bold px-4 py-2 bg-white rounded-lg border border-indigo-100 flex items-center gap-2">
+                                            <InformationCircleIcon className="w-4 h-4" />
+                                            前日のレポートを貼ると、右側の「累計（藍色）」が自動で埋まります。
+                                        </p>
+                                        <textarea className="w-full h-48 p-5 text-sm border-2 border-indigo-200 rounded-2xl focus:border-indigo-500 outline-none shadow-inner bg-white text-slate-900 font-mono" placeholder="前日のレポートを全文貼り付け..." value={pasteText} onChange={(e) => setPasteText(e.target.value)}></textarea>
+                                        <button onClick={handleParsePaste} className="w-full bg-indigo-900 text-white font-black py-4 rounded-2xl hover:bg-black shadow-lg flex items-center justify-center gap-2 active:scale-95">
+                                            <ArrowPathIcon className={`w-6 h-6 ${parseStatus !== 'idle' ? 'animate-spin' : ''}`} />
+                                            累計数値を読み込む
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* 本日の入力 */}
+                            <section className="bg-white p-8 rounded-3xl shadow-md border border-slate-200 relative">
+                                <div className="flex justify-between items-center mb-8">
+                                    <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3">
+                                        <span className="w-3 h-8 bg-indigo-600 rounded-full"></span>2. 本日の数値を入力
+                                    </h2>
+                                    <div className="flex items-center gap-3 bg-slate-100 px-4 py-2 rounded-xl border border-slate-200">
+                                        <label className="text-sm text-slate-700 font-black">対象月:</label>
+                                        <input type="number" value={cumulative.month} onChange={(e) => setCumulative(prev => ({ ...prev, month: e.target.value }))} className="w-16 border-2 border-indigo-200 rounded-lg p-1 text-center font-black text-indigo-900 bg-white outline-none focus:border-indigo-600" />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                                    <UniversalInput label="【契約人数】" unit="人" value={report.contractCount} onChange={(v) => handleReportChange('contractCount', v)} />
+                                    <UniversalInput label="【契約予定者】" unit="人" value={report.contractScheduled} onChange={(v) => handleReportChange('contractScheduled', v)} />
+                                    <UniversalInput label="【インテーク予定】" unit="人" value={report.intakeScheduled} onChange={(v) => handleReportChange('intakeScheduled', v)} />
+                                    <UniversalInput label="【利用人数】" unit="人" value={report.userCount} onChange={(v) => handleReportChange('userCount', v)} />
+                                    <UniversalInput label="【インテーク】" unit="件" value={report.intakeCount} onChange={(v) => handleReportChange('intakeCount', v)} />
+                                    <UniversalInput label="【利用開始者】" unit="人" value={report.newUsers} onChange={(v) => handleReportChange('newUsers', v)} />
+                                    <div className="md:col-span-2 space-y-2 mt-2">
+                                        <label className="block text-sm font-black text-slate-700 uppercase tracking-wider">【備考】</label>
+                                        <textarea value={report.generalRemarks} onChange={(e) => handleReportChange('generalRemarks', e.target.value)} className="w-full border-2 border-slate-300 rounded-2xl px-5 py-4 h-24 resize-none focus:border-indigo-600 outline-none font-medium bg-white text-slate-900" placeholder={REMARKS_PLACEHOLDER} />
+                                    </div>
+                                </div>
+                            </section>
+
+                            {/* 配布 */}
+                            <section className="bg-white p-8 rounded-3xl shadow-md border border-slate-200">
+                                <h2 className="text-2xl font-black text-slate-800 mb-6 flex items-center gap-3">
+                                    <span className="w-3 h-8 bg-indigo-600 rounded-full"></span>配布・設置
+                                </h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
+                                    <div className="space-y-6">
+                                        <h3 className="font-black text-slate-500 text-[10px] border-b-2 border-slate-100 pb-2 uppercase text-center tracking-tighter">当日入力 (左)</h3>
+                                        <div className="space-y-4">
+                                            <UniversalInput label="ポスティング数" unit="枚" value={report.postingDaily} onChange={(v) => handleReportChange('postingDaily', v)} />
+                                            <UniversalInput label="チラシ設置" unit="件" value={report.flyerDaily} onChange={(v) => handleReportChange('flyerDaily', v)} />
+                                        </div>
+                                    </div>
+                                    <div className={`space-y-6 p-6 rounded-2xl border-2 transition-colors ${highlight ? 'bg-indigo-50 border-indigo-400' : 'bg-slate-50 border-slate-200'}`}>
+                                        <h3 className="font-black text-indigo-900 text-[10px] border-b-2 border-indigo-200 pb-2 text-center uppercase tracking-widest">前日までの累計 (右)</h3>
+                                        <div className="space-y-4">
+                                            <UniversalInput label="累計ポスティング" unit="枚" theme="indigo" value={cumulative.postingTotal} onChange={(v) => handleCumulativeFieldChange('postingTotal', v)} />
+                                            <UniversalInput label="累計チラシ設置" unit="件" theme="indigo" value={cumulative.flyerTotal} onChange={(v) => handleCumulativeFieldChange('flyerTotal', v)} />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="mt-6 space-y-2">
+                                    <label className="block text-sm font-black text-slate-700 uppercase tracking-wider">【配布・設置 備考】</label>
+                                    <textarea value={report.distributionRemarks} onChange={(e) => handleReportChange('distributionRemarks', e.target.value)} className="w-full border-2 border-slate-300 rounded-2xl px-5 py-4 h-24 resize-none focus:border-indigo-600 outline-none font-medium bg-white text-slate-900" placeholder={REMARKS_PLACEHOLDER} />
+                                </div>
+                            </section>
+
+                            {/* 問い合わせ詳細 */}
+                            <section className="bg-white p-8 rounded-3xl shadow-md border border-slate-200">
+                                <h2 className="text-2xl font-black text-slate-800 mb-8 flex items-center gap-3">
+                                    <span className="w-3 h-8 bg-indigo-600 rounded-full"></span>問い合わせ詳細
+                                </h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                                    <div className="space-y-6">
+                                        <h3 className="font-black text-slate-500 text-[10px] border-b-2 border-slate-100 pb-2 mb-4 uppercase text-center tracking-tighter">当日入力 (左)</h3>
+                                        <div className="space-y-5">
+                                            {Object.keys(INQUIRY_LABELS).map((key) => (
+                                                <UniversalInput key={`daily-${key}`} label={INQUIRY_LABELS[key]} unit="件" value={report.inquiryDaily[key]} onChange={(v) => handleInquiryChange('daily', key, v)} />
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className={`p-6 rounded-2xl border-2 transition-colors ${highlight ? 'bg-indigo-50 border-indigo-400 shadow-md' : 'bg-slate-50 border-slate-200'}`}>
+                                        <h3 className="font-black text-indigo-900 text-[10px] border-b-2 border-indigo-200 pb-2 mb-6 text-center uppercase tracking-widest">前日までの累計 (右)</h3>
+                                        <div className="space-y-5">
+                                            {Object.keys(INQUIRY_LABELS).map((key) => (
+                                                <UniversalInput key={`cum-${key}`} label={INQUIRY_LABELS[key]} unit="件" theme="indigo" value={cumulative.inquiryTotal[key]} onChange={(v) => handleInquiryChange('cumulative', key, v)} />
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="mt-8 space-y-2">
+                                    <label className="block text-sm font-black text-slate-700 uppercase tracking-wider">【問い合わせ 備考】</label>
+                                    <textarea value={report.inquiryRemarks} onChange={(e) => handleReportChange('inquiryRemarks', e.target.value)} className="w-full border-2 border-slate-300 rounded-2xl px-5 py-4 h-24 resize-none focus:border-indigo-600 outline-none font-medium bg-white text-slate-900" placeholder={REMARKS_PLACEHOLDER} />
+                                </div>
+                            </section>
+                        </div>
+
+                        {/* プレビューエリア */}
+                        <div className="lg:col-span-5 relative">
+                            <div className="lg:sticky lg:top-28 space-y-8">
+                                <div className="bg-slate-900 rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col h-[750px] border-[12px] border-slate-800">
+                                    <div className="bg-slate-800 px-8 py-5 flex justify-between items-center border-b border-slate-700">
+                                        <span className="text-slate-300 text-xs font-black uppercase tracking-widest flex items-center gap-2">
+                                            <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+                                            プレビュー
+                                        </span>
+                                        <button onClick={copyToClipboard} className={`px-6 py-2 rounded-full font-black text-xs transition-all active:scale-95 shadow-lg ${isCopied ? 'bg-emerald-600 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-500'}`}>
+                                            {isCopied ? 'コピー完了' : 'レポートをコピー'}
+                                        </button>
+                                    </div>
+                                    <div className="flex-1 overflow-auto p-8 font-mono text-emerald-400 whitespace-pre-wrap text-[13.5px] leading-relaxed custom-scrollbar selection:bg-indigo-500/40">
+                                        {generatedReport}
+                                    </div>
+                                </div>
+                                
+                                <div className="bg-white p-6 rounded-3xl border-4 border-indigo-100 shadow-xl space-y-4">
+                                    <div className="flex items-center gap-3 text-indigo-900 font-black text-lg">
+                                        <CloudArrowUpIcon className="w-8 h-8" />
+                                        <span>3. 仕上げのステップ</span>
+                                    </div>
+                                    <div className="space-y-3">
+                                        <div className={`p-4 rounded-xl border-2 transition-all flex items-center gap-4 ${isCopied ? 'bg-emerald-50 border-emerald-500 ring-2 ring-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
+                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black ${isCopied ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-white'}`}>
+                                                {isCopied ? <CheckIcon className="w-5 h-5" /> : '1'}
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className={`text-sm font-black ${isCopied ? 'text-emerald-900' : 'text-slate-600'}`}>レポートをコピー</p>
+                                                {isCopied && <p className="text-[10px] text-emerald-600 font-bold">クリップボードに保存済み</p>}
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="p-4 rounded-xl border-2 border-slate-200 bg-slate-50 flex items-center gap-4">
+                                            <div className="w-8 h-8 rounded-full bg-indigo-900 text-white flex items-center justify-center font-black">2</div>
+                                            <p className="text-sm font-black text-indigo-900 flex-1">
+                                                サイボウズを開いて<br/>本文に貼り付けてアップ
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
     </script>
 </body>
 </html>
