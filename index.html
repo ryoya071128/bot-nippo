@@ -5,51 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>e稲沢 業務報告作成BOT</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    
     <style>
         body { font-family: 'Noto Sans JP', sans-serif; background-color: #f8fafc; }
         .custom-scrollbar::-webkit-scrollbar { width: 8px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 4px; }
-        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 4px; }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        // Reactの機能を直接取り出す
-        const { useState, useEffect, useMemo, useCallback } = React;
+        const { useState, useEffect, useMemo } = React;
 
         const INQUIRY_LABELS = { newspaper: '新聞折込', posting: 'ポスティング', flyer: 'チラシ設置', crayon: 'クレヨン', intro: '紹介', hp: 'ホームページ', litalico: 'リタリコ仕事ナビ', previous: '以前問い合わせ者', unknown: '不明' };
-        const INITIAL_INQUIRY = { newspaper: 0, posting: 0, flyer: 0, crayon: 0, intro: 0, hp: 0, litalico: 0, previous: 0, unknown: 0 };
-        const INITIAL_REPORT = { departmentName: 'e稲沢', reportDate: new Date().toISOString().split('T')[0], contractCount: 0, contractScheduled: 0, intakeScheduled: 0, userCount: 0, intakeCount: 0, newUsers: 0, generalRemarks: '', distributionRemarks: '', inquiryRemarks: '', postingDaily: 0, flyerDaily: 0, inquiryDaily: { ...INITIAL_INQUIRY } };
-
-        const UniversalInput = ({ value, onChange, unit, label, theme = 'light' }) => {
-            const isIndigo = theme === 'indigo';
-            return (
-                <div className="mb-4 w-full">
-                    {label && <label className="text-[10px] font-black uppercase text-slate-500 block mb-1">{label}</label>}
-                    <div className="flex h-12">
-                        <button onClick={() => onChange(Math.max(0, value - 1))} className="px-4 rounded-l-xl border-2 bg-slate-100 font-bold">-</button>
-                        <input type="number" value={value} onChange={(e) => onChange(parseInt(e.target.value) || 0)} className="flex-1 text-center border-y-2 font-black text-xl outline-none" />
-                        <button onClick={() => onChange(value + 1)} className="px-4 rounded-r-xl border-2 bg-indigo-600 text-white font-bold">+</button>
-                    </div>
-                </div>
-            );
-        };
-
+        
         const App = () => {
-            const [report, setReport] = useState(INITIAL_REPORT);
+            const [report, setReport] = useState({
+                dept: 'e稲沢', date: new Date().toISOString().split('T')[0],
+                contract: 0, users: 0, intake: 0, posting: 0, remarks: '',
+                inquiry: { newspaper: 0, posting: 0, flyer: 0, crayon: 0, intro: 0, hp: 0, litalico: 0, previous: 0, unknown: 0 }
+            });
             const [isCopied, setIsCopied] = useState(false);
 
             const generatedReport = useMemo(() => {
-                const inquirySection = Object.keys(INQUIRY_LABELS).map(key => `${INQUIRY_LABELS[key].padEnd(8, '　')} ${report.inquiryDaily[key]}件`).join('\n');
-                return `${report.departmentName} (${report.reportDate})\n\n【契約人数】 ${report.contractCount}人\n【利用人数】 ${report.userCount}人\n【インテーク】 ${report.intakeCount}件\n\n【備考】\n${report.generalRemarks || '特になし'}\n\n【問い合わせ】\n${inquirySection}`;
+                const inqText = Object.keys(INQUIRY_LABELS).map(k => `${INQUIRY_LABELS[k].padEnd(8, '　')} ${report.inquiry[k]}件`).join('\n');
+                return `${report.dept} (${report.date})\n\n【契約人数】 ${report.contract}人\n【利用人数】 ${report.users}人\n【インテーク】 ${report.intake}件\n\n【ポスティング】 ${report.posting}枚\n\n【備考】\n${report.remarks || '特になし'}\n\n【問い合わせ詳細】\n${inqText}`;
             }, [report]);
 
             const copyToClipboard = () => {
@@ -58,32 +44,63 @@
                 setTimeout(() => setIsCopied(false), 2000);
             };
 
+            const InputGroup = ({ label, value, onChange }) => (
+                <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <span className="font-bold text-slate-700 text-sm">{label}</span>
+                    <div className="flex items-center gap-3">
+                        <button onClick={() => onChange(Math.max(0, value - 1))} className="w-8 h-8 bg-white border border-slate-300 rounded-full font-bold shadow-sm">-</button>
+                        <span className="w-12 text-center font-black text-indigo-700 text-lg">{value}</span>
+                        <button onClick={() => onChange(value + 1)} className="w-8 h-8 bg-indigo-600 text-white rounded-full font-bold shadow-md">+</button>
+                    </div>
+                </div>
+            );
+
             return (
-                <div className="min-h-screen bg-slate-100 pb-12">
-                    <header className="bg-indigo-900 text-white p-6 mb-8 sticky top-0 z-50 shadow-lg">
-                        <div className="max-w-6xl mx-auto flex justify-between items-center">
-                            <h1 className="text-2xl font-black italic uppercase">業務報告作成BOT</h1>
-                            <button onClick={copyToClipboard} className={`px-6 py-2 rounded-xl font-bold transition-all ${isCopied ? 'bg-emerald-600' : 'bg-white text-indigo-900'}`}>
+                <div className="min-h-screen pb-10">
+                    <header className="bg-indigo-900 text-white p-6 shadow-2xl mb-8 sticky top-0 z-50">
+                        <div className="max-w-5xl mx-auto flex justify-between items-center">
+                            <h1 className="text-2xl font-black tracking-tighter italic">e稲沢 業務報告作成BOT</h1>
+                            <button onClick={copyToClipboard} className={`px-8 py-3 rounded-full font-black transition-all transform active:scale-95 ${isCopied ? 'bg-emerald-500 scale-105' : 'bg-white text-indigo-900 shadow-lg'}`}>
                                 {isCopied ? 'コピー完了！' : 'レポートをコピー'}
                             </button>
                         </div>
                     </header>
-                    <main className="max-w-6xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        <div className="space-y-6">
-                            <div className="bg-white p-6 rounded-3xl shadow-md grid grid-cols-2 gap-4">
-                                <input type="text" value={report.departmentName} onChange={e => setReport({...report, departmentName: e.target.value})} class="border-2 p-2 rounded-lg font-bold" />
-                                <input type="date" value={report.reportDate} onChange={e => setReport({...report, reportDate: e.target.value})} class="border-2 p-2 rounded-lg" />
+
+                    <main className="max-w-5xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div className="space-y-6 animate-fade-in">
+                            <div className="bg-white p-6 rounded-3xl shadow-xl border-2 border-indigo-50 grid grid-cols-2 gap-4">
+                                <input type="text" value={report.dept} onChange={e => setReport({...report, dept: e.target.value})} className="border-2 p-3 rounded-xl font-bold bg-slate-50" />
+                                <input type="date" value={report.date} onChange={e => setReport({...report, date: e.target.value})} className="border-2 p-3 rounded-xl font-bold bg-white" />
                             </div>
-                            <div className="bg-white p-6 rounded-3xl shadow-md">
-                                <h2 className="text-lg font-black mb-4 border-l-4 border-indigo-600 pl-2">基本数値</h2>
-                                <UniversalInput label="契約人数" unit="人" value={report.contractCount} onChange={v => setReport({...report, contractCount: v})} />
-                                <UniversalInput label="利用人数" unit="人" value={report.userCount} onChange={v => setReport({...report, userCount: v})} />
-                                <UniversalInput label="インテーク" unit="件" value={report.intakeCount} onChange={v => setReport({...report, intakeCount: v})} />
-                                <textarea className="w-full border-2 p-4 rounded-xl h-24 mt-2" placeholder="備考" value={report.generalRemarks} onChange={e => setReport({...report, generalRemarks: e.target.value})} />
-                            </div>
+
+                            <section className="bg-white p-6 rounded-3xl shadow-xl space-y-4">
+                                <h2 className="text-lg font-black text-indigo-900 flex items-center gap-2"><span className="w-2 h-6 bg-indigo-600 rounded-full"></span>基本数値</h2>
+                                <InputGroup label="契約人数" value={report.contract} onChange={v => setReport({...report, contract: v})} />
+                                <InputGroup label="利用人数" value={report.users} onChange={v => setReport({...report, users: v})} />
+                                <InputGroup label="インテーク" value={report.intake} onChange={v => setReport({...report, intake: v})} />
+                                <InputGroup label="ポスティング" value={report.posting} onChange={v => setReport({...report, posting: v})} />
+                                <textarea className="w-full border-2 p-4 rounded-2xl h-24 focus:border-indigo-500 outline-none" placeholder="自由記入の備考欄" value={report.remarks} onChange={e => setReport({...report, remarks: e.target.value})} />
+                            </section>
+
+                            <section className="bg-white p-6 rounded-3xl shadow-xl space-y-4">
+                                <h2 className="text-lg font-black text-indigo-900 flex items-center gap-2"><span className="w-2 h-6 bg-emerald-500 rounded-full"></span>問い合わせ内訳</h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {Object.keys(INQUIRY_LABELS).map(k => (
+                                        <InputGroup key={k} label={INQUIRY_LABELS[k]} value={report.inquiry[k]} onChange={v => setReport({...report, inquiry: {...report.inquiry, [k]: v}})} />
+                                    ))}
+                                </div>
+                            </section>
                         </div>
-                        <div className="bg-slate-900 rounded-[2.5rem] p-8 h-[600px] text-emerald-400 font-mono whitespace-pre-wrap shadow-2xl sticky top-28 overflow-auto">
-                            {generatedReport}
+
+                        <div className="lg:sticky lg:top-28 h-fit">
+                            <div className="bg-slate-900 rounded-[2.5rem] p-8 shadow-2xl border-[10px] border-slate-800">
+                                <div className="flex justify-between items-center mb-6 border-b border-slate-700 pb-4">
+                                    <span className="text-xs font-black text-slate-400 tracking-[0.2em]">GENERATED REPORT</span>
+                                </div>
+                                <div className="text-emerald-400 font-mono whitespace-pre-wrap text-[15px] leading-relaxed h-[500px] overflow-auto custom-scrollbar">
+                                    {generatedReport}
+                                </div>
+                            </div>
                         </div>
                     </main>
                 </div>
