@@ -7,6 +7,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     
     <style>
         body { font-family: 'Noto Sans JP', sans-serif; background-color: #f8fafc; }
@@ -14,102 +16,41 @@
         .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 4px; }
         input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-        .animate-fade-in { animation: fadeIn 0.3s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
-
-    <script type="importmap">
-    {
-      "imports": {
-        "react": "https://esm.sh/react@19.0.0",
-        "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
-        "@heroicons/react/24/outline": "https://esm.sh/@heroicons/react@2.1.1/24/outline"
-      }
-    }
-    </script>
 </head>
 <body>
     <div id="root"></div>
 
-    <script type="text/babel" data-presets="react,typescript">
-        import React, { useState, useEffect, useMemo, useCallback } from 'react';
-        import ReactDOM from 'react-dom/client';
-        import { 
-            ClipboardDocumentCheckIcon, TrashIcon, ArrowPathIcon, DocumentTextIcon, 
-            BuildingOfficeIcon, InformationCircleIcon, CloudArrowUpIcon, CheckIcon,
-            PlusIcon, MinusIcon 
-        } from '@heroicons/react/24/outline';
+    <script type="text/babel">
+        // Reactの機能を直接取り出す
+        const { useState, useEffect, useMemo, useCallback } = React;
 
         const INQUIRY_LABELS = { newspaper: '新聞折込', posting: 'ポスティング', flyer: 'チラシ設置', crayon: 'クレヨン', intro: '紹介', hp: 'ホームページ', litalico: 'リタリコ仕事ナビ', previous: '以前問い合わせ者', unknown: '不明' };
         const INITIAL_INQUIRY = { newspaper: 0, posting: 0, flyer: 0, crayon: 0, intro: 0, hp: 0, litalico: 0, previous: 0, unknown: 0 };
         const INITIAL_REPORT = { departmentName: 'e稲沢', reportDate: new Date().toISOString().split('T')[0], contractCount: 0, contractScheduled: 0, intakeScheduled: 0, userCount: 0, intakeCount: 0, newUsers: 0, generalRemarks: '', distributionRemarks: '', inquiryRemarks: '', postingDaily: 0, flyerDaily: 0, inquiryDaily: { ...INITIAL_INQUIRY } };
-        const INITIAL_CUMULATIVE = { month: (new Date().getMonth() + 1).toString(), postingTotal: 0, flyerTotal: 0, inquiryTotal: { ...INITIAL_INQUIRY } };
-        const REMARKS_PLACEHOLDER = "詳細・備考があれば記入してください";
 
         const UniversalInput = ({ value, onChange, unit, label, theme = 'light' }) => {
             const isIndigo = theme === 'indigo';
             return (
-                <div className="space-y-1 w-full">
-                    {label && <label className={`text-[10px] font-black uppercase tracking-widest block mb-1 ${isIndigo ? 'text-indigo-800' : 'text-slate-500'}`}>{label}</label>}
-                    <div className="flex items-stretch gap-0.5 group h-12">
-                        <button onClick={() => onChange(Math.max(0, value - 1))} className={`px-4 rounded-l-xl border-2 transition-all active:scale-95 flex items-center justify-center shrink-0 ${isIndigo ? 'bg-indigo-100 border-indigo-200 text-indigo-700 hover:bg-indigo-200' : 'bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200'}`}><MinusIcon className="w-5 h-5" /></button>
-                        <div className="relative flex-1 min-w-0">
-                            <input type="number" value={value} onChange={(e) => onChange(parseInt(e.target.value) || 0)} className={`w-full h-full border-y-2 px-3 text-center font-black outline-none transition-colors text-xl leading-none ${isIndigo ? 'border-indigo-200 bg-white text-indigo-900 focus:border-indigo-600 focus:bg-indigo-50/30' : 'border-slate-200 bg-white text-slate-900 focus:border-indigo-600 focus:bg-slate-50/30'}`} /><span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-black opacity-30 pointer-events-none uppercase">{unit}</span>
-                        </div>
-                        <button onClick={() => onChange(value + 1)} className="px-4 rounded-r-xl border-2 bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700 shadow-sm"><PlusIcon className="w-5 h-5" /></button>
+                <div className="mb-4 w-full">
+                    {label && <label className="text-[10px] font-black uppercase text-slate-500 block mb-1">{label}</label>}
+                    <div className="flex h-12">
+                        <button onClick={() => onChange(Math.max(0, value - 1))} className="px-4 rounded-l-xl border-2 bg-slate-100 font-bold">-</button>
+                        <input type="number" value={value} onChange={(e) => onChange(parseInt(e.target.value) || 0)} className="flex-1 text-center border-y-2 font-black text-xl outline-none" />
+                        <button onClick={() => onChange(value + 1)} className="px-4 rounded-r-xl border-2 bg-indigo-600 text-white font-bold">+</button>
                     </div>
                 </div>
             );
         };
 
         const App = () => {
-            const [report, setReport] = useState(() => {
-                const savedDept = localStorage.getItem('einazawa_dept');
-                const base = JSON.parse(JSON.stringify(INITIAL_REPORT));
-                if (savedDept) base.departmentName = savedDept;
-                return base;
-            });
-            const [cumulative, setCumulative] = useState(() => {
-                const saved = localStorage.getItem('einazawa_cumulative');
-                return saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(INITIAL_CUMULATIVE));
-            });
+            const [report, setReport] = useState(INITIAL_REPORT);
             const [isCopied, setIsCopied] = useState(false);
-            const [pasteText, setPasteText] = useState('');
-            const [showPasteArea, setShowPasteArea] = useState(false);
-            const [highlight, setHighlight] = useState(false);
-
-            useEffect(() => {
-                localStorage.setItem('einazawa_cumulative', JSON.stringify(cumulative));
-                localStorage.setItem('einazawa_dept', report.departmentName);
-            }, [cumulative, report.departmentName]);
-
-            const handleReportChange = (field, value) => setReport(prev => ({ ...prev, [field]: value }));
-            const handleInquiryChange = (type, field, value) => {
-                if (type === 'daily') setReport(prev => ({ ...prev, inquiryDaily: { ...prev.inquiryDaily, [field]: value } }));
-                else setCumulative(prev => ({ ...prev, inquiryTotal: { ...prev.inquiryTotal, [field]: value } }));
-            };
-
-            const handleParsePaste = () => {
-                try {
-                    const newReport = JSON.parse(JSON.stringify(report));
-                    const newCumulative = JSON.parse(JSON.stringify(cumulative));
-                    const extractVal = (label, text) => {
-                        const regex = new RegExp(`${label}[\\s　：:]*([\\d,]+)`, 'm');
-                        const match = text.match(regex);
-                        return match ? parseInt(match[1].replace(/,/g, ''), 10) : null;
-                    };
-                    newReport.contractCount = extractVal('【契約人数】', pasteText) ?? newReport.contractCount;
-                    setReport(newReport);
-                    setCumulative(newCumulative);
-                    setHighlight(true);
-                    setTimeout(() => { setShowPasteArea(false); setHighlight(false); }, 2000);
-                } catch (e) { console.error(e); }
-            };
 
             const generatedReport = useMemo(() => {
-                const inquirySection = (data) => Object.keys(INQUIRY_LABELS).map(key => `${INQUIRY_LABELS[key].padEnd(8, '　')} ${data[key] ?? 0}件`).join('\n');
-                return `${report.departmentName} (${report.reportDate})\n\n【契約人数】 ${report.contractCount}人\n【利用人数】 ${report.userCount}人\n\n【備考】\n${report.generalRemarks}\n\n【配布・設置】\nポスティング ${report.postingDaily}枚\n\n【問合せ】\n${inquirySection(report.inquiryDaily)}`;
-            }, [report, cumulative]);
+                const inquirySection = Object.keys(INQUIRY_LABELS).map(key => `${INQUIRY_LABELS[key].padEnd(8, '　')} ${report.inquiryDaily[key]}件`).join('\n');
+                return `${report.departmentName} (${report.reportDate})\n\n【契約人数】 ${report.contractCount}人\n【利用人数】 ${report.userCount}人\n【インテーク】 ${report.intakeCount}件\n\n【備考】\n${report.generalRemarks || '特になし'}\n\n【問い合わせ】\n${inquirySection}`;
+            }, [report]);
 
             const copyToClipboard = () => {
                 navigator.clipboard.writeText(generatedReport);
@@ -118,36 +59,31 @@
             };
 
             return (
-                <div className="min-h-screen pb-12 bg-slate-100">
-                    <header className="bg-indigo-900 text-white py-6 px-4 shadow-xl mb-8 sticky top-0 z-50 flex justify-between items-center max-w-full">
-                        <div className="max-w-6xl mx-auto flex w-full justify-between items-center">
-                            <h1 className="text-2xl font-black italic">業務報告作成BOT</h1>
-                            <button onClick={copyToClipboard} className={`px-8 py-2.5 rounded-xl font-black transition-all ${isCopied ? 'bg-emerald-600' : 'bg-white text-indigo-900'}`}>{isCopied ? '完了！' : 'コピー'}</button>
+                <div className="min-h-screen bg-slate-100 pb-12">
+                    <header className="bg-indigo-900 text-white p-6 mb-8 sticky top-0 z-50 shadow-lg">
+                        <div className="max-w-6xl mx-auto flex justify-between items-center">
+                            <h1 className="text-2xl font-black italic uppercase">業務報告作成BOT</h1>
+                            <button onClick={copyToClipboard} className={`px-6 py-2 rounded-xl font-bold transition-all ${isCopied ? 'bg-emerald-600' : 'bg-white text-indigo-900'}`}>
+                                {isCopied ? 'コピー完了！' : 'レポートをコピー'}
+                            </button>
                         </div>
                     </header>
-                    <main className="max-w-6xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-12 gap-8">
-                        <div className="lg:col-span-7 space-y-8">
-                            <div className="bg-white p-8 rounded-3xl shadow-md border-2 border-indigo-50 grid grid-cols-2 gap-8">
-                                <input type="text" value={report.departmentName} onChange={(e) => handleReportChange('departmentName', e.target.value)} className="w-full border-2 p-3 rounded-xl font-bold" />
-                                <input type="date" value={report.reportDate} onChange={(e) => handleReportChange('reportDate', e.target.value)} className="w-full border-2 p-3 rounded-xl" />
+                    <main className="max-w-6xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div className="space-y-6">
+                            <div className="bg-white p-6 rounded-3xl shadow-md grid grid-cols-2 gap-4">
+                                <input type="text" value={report.departmentName} onChange={e => setReport({...report, departmentName: e.target.value})} class="border-2 p-2 rounded-lg font-bold" />
+                                <input type="date" value={report.reportDate} onChange={e => setReport({...report, reportDate: e.target.value})} class="border-2 p-2 rounded-lg" />
                             </div>
-                            <section className="bg-white p-8 rounded-3xl shadow-md space-y-6">
-                                <h2 className="text-xl font-black border-l-4 border-indigo-600 pl-3">数値を入力</h2>
-                                <UniversalInput label="契約人数" unit="人" value={report.contractCount} onChange={(v) => handleReportChange('contractCount', v)} />
-                                <UniversalInput label="利用人数" unit="人" value={report.userCount} onChange={(v) => handleReportChange('userCount', v)} />
-                                <textarea value={report.generalRemarks} onChange={(e) => handleReportChange('generalRemarks', e.target.value)} className="w-full border-2 rounded-2xl p-4 h-24" placeholder="備考" />
-                            </section>
-                            <section className="bg-white p-8 rounded-3xl shadow-md space-y-6">
-                                <h2 className="text-xl font-black border-l-4 border-indigo-600 pl-3">問い合わせ</h2>
-                                {Object.keys(INQUIRY_LABELS).map(key => (
-                                    <UniversalInput key={key} label={INQUIRY_LABELS[key]} unit="件" value={report.inquiryDaily[key]} onChange={(v) => handleInquiryChange('daily', key, v)} />
-                                ))}
-                            </section>
+                            <div className="bg-white p-6 rounded-3xl shadow-md">
+                                <h2 className="text-lg font-black mb-4 border-l-4 border-indigo-600 pl-2">基本数値</h2>
+                                <UniversalInput label="契約人数" unit="人" value={report.contractCount} onChange={v => setReport({...report, contractCount: v})} />
+                                <UniversalInput label="利用人数" unit="人" value={report.userCount} onChange={v => setReport({...report, userCount: v})} />
+                                <UniversalInput label="インテーク" unit="件" value={report.intakeCount} onChange={v => setReport({...report, intakeCount: v})} />
+                                <textarea className="w-full border-2 p-4 rounded-xl h-24 mt-2" placeholder="備考" value={report.generalRemarks} onChange={e => setReport({...report, generalRemarks: e.target.value})} />
+                            </div>
                         </div>
-                        <div className="lg:col-span-5 relative">
-                            <div className="lg:sticky lg:top-28 bg-slate-900 rounded-[2.5rem] p-8 h-[700px] overflow-auto text-emerald-400 font-mono whitespace-pre-wrap shadow-2xl">
-                                {generatedReport}
-                            </div>
+                        <div className="bg-slate-900 rounded-[2.5rem] p-8 h-[600px] text-emerald-400 font-mono whitespace-pre-wrap shadow-2xl sticky top-28 overflow-auto">
+                            {generatedReport}
                         </div>
                     </main>
                 </div>
