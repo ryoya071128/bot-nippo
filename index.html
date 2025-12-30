@@ -64,7 +64,7 @@
 <body>
     <div id="root"></div>
 
-    <!-- data-type="module" is critical for browser ESM imports to work inside Babel script -->
+    <!-- data-type="module" allows using imports within the script handled by Babel -->
     <script type="text/babel" data-type="module" data-presets="react,typescript">
         import React, { useState, useEffect, useMemo, useCallback } from 'react';
         import ReactDOM from 'react-dom/client';
@@ -81,7 +81,7 @@
             MinusIcon 
         } from '@heroicons/react/24/outline';
 
-        // --- 定数定義 (Merged from constants.ts) ---
+        // --- 定数定義 ---
         const INQUIRY_LABELS = {
             newspaper: '新聞折込',
             posting: 'ポスティング',
@@ -132,7 +132,7 @@
 
         const REMARKS_PLACEHOLDER = "詳細・備考があれば記入してください";
 
-        // --- コンポーネント (Merged from App.tsx) ---
+        // --- 子コンポーネント ---
         const UniversalInput = ({ value, onChange, unit, label, theme = 'light' }) => {
             const [tempValue, setTempValue] = useState(value.toString());
 
@@ -158,6 +158,7 @@
                     {label && <label className={`text-[10px] font-black uppercase tracking-widest block mb-1 ${isIndigo ? 'text-indigo-800' : 'text-slate-500'}`}>{label}</label>}
                     <div className="flex items-stretch gap-0.5 group h-12">
                         <button 
+                            type="button"
                             onClick={() => onChange(Math.max(0, value - 1))}
                             className={`px-4 rounded-l-xl border-2 transition-all active:scale-95 flex items-center justify-center shrink-0 ${
                                 isIndigo ? 'bg-indigo-100 border-indigo-200 text-indigo-700 hover:bg-indigo-200' : 'bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200'
@@ -181,6 +182,7 @@
                             </span>
                         </div>
                         <button 
+                            type="button"
                             onClick={() => onChange(value + 1)}
                             className={`px-4 rounded-r-xl border-2 transition-all active:scale-95 flex items-center justify-center shrink-0 ${
                                 isIndigo ? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700' : 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700 shadow-sm'
@@ -193,6 +195,7 @@
             );
         };
 
+        // --- メインアプリケーション ---
         const App = () => {
             const [report, setReport] = useState(() => {
                 const savedDept = localStorage.getItem('einazawa_dept');
@@ -274,13 +277,29 @@
                         return extractVal(targetLabel, subText);
                     };
 
-                    // パース処理 - 累計情報を優先して取得
+                    // 1. 部署名の更新（1行目から抽出）
+                    const lines = cleanText.split('\n');
+                    if (lines.length > 0) {
+                        const potentialDept = lines[0].split('(')[0].split('（')[0].trim();
+                        if (potentialDept && potentialDept.length < 20) newReport.departmentName = potentialDept;
+                    }
+
+                    // 2. 本日の数値入力（上部セクションから抽出）
+                    newReport.contractCount = extractVal('【契約人数】', topSection) ?? newReport.contractCount;
+                    newReport.contractScheduled = extractVal('【契約予定者】', topSection) ?? newReport.contractScheduled;
+                    newReport.intakeScheduled = extractVal('【インテーク予定】', topSection) ?? newReport.intakeScheduled;
+                    newReport.userCount = extractVal('【利用人数】', topSection) ?? newReport.userCount;
+                    newReport.intakeCount = extractVal('【インテーク】', topSection) ?? newReport.intakeCount;
+                    newReport.newUsers = extractVal('【利用開始者】', topSection) ?? newReport.newUsers;
+
+                    // 3. 累計数値の更新（右側のインディゴ入力欄へ）
                     const pTotal = findAfterHeading('【ポスティング枚数】', '\\d+月合計', cleanText);
                     if (pTotal !== null) newCumulative.postingTotal = pTotal;
 
                     const fTotal = findAfterHeading('【チラシ設置】', '\\d+月合計', cleanText);
                     if (fTotal !== null) newCumulative.flyerTotal = fTotal;
 
+                    // 4. 問い合わせ累計の更新
                     Object.keys(INQUIRY_LABELS).forEach((key) => {
                         const label = INQUIRY_LABELS[key];
                         const searchPool = bottomSection || cleanText;
@@ -396,10 +415,10 @@ ${report.inquiryRemarks || ''}`;
                                 <h1 className="text-2xl font-black tracking-tighter uppercase italic">業務報告作成BOT</h1>
                             </div>
                             <div className="flex items-center gap-3">
-                                <button onClick={resetAll} className="flex items-center gap-2 bg-indigo-800 hover:bg-slate-700 px-4 py-2 rounded-xl transition-all text-sm font-bold active:scale-95 border border-indigo-700">
+                                <button type="button" onClick={resetAll} className="flex items-center gap-2 bg-indigo-800 hover:bg-slate-700 px-4 py-2 rounded-xl transition-all text-sm font-bold active:scale-95 border border-indigo-700">
                                     <TrashIcon className="w-5 h-5" />リセット
                                 </button>
-                                <button onClick={copyToClipboard} className={`flex items-center gap-2 px-8 py-2.5 rounded-xl font-black transition-all shadow-lg active:scale-95 ${isCopied ? 'bg-emerald-600 text-white' : 'bg-white text-indigo-900 hover:bg-indigo-50'}`}>
+                                <button type="button" onClick={copyToClipboard} className={`flex items-center gap-2 px-8 py-2.5 rounded-xl font-black transition-all shadow-lg active:scale-95 ${isCopied ? 'bg-emerald-600 text-white scale-105' : 'bg-white text-indigo-900 hover:bg-indigo-50'}`}>
                                     <ClipboardDocumentCheckIcon className="w-6 h-6" />{isCopied ? 'コピー完了！' : 'レポートをコピー'}
                                 </button>
                             </div>
@@ -408,7 +427,7 @@ ${report.inquiryRemarks || ''}`;
 
                     <main className="max-w-6xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-12 gap-8">
                         <div className="lg:col-span-7 space-y-8">
-                            {/* 設定 */}
+                            {/* 部署 & 日付 */}
                             <div className="bg-white p-8 rounded-3xl shadow-md border-2 border-indigo-50 grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-2">
                                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest block">部署名</label>
@@ -426,7 +445,7 @@ ${report.inquiryRemarks || ''}`;
                                     <h3 className="text-indigo-900 font-black flex items-center gap-2 text-lg">
                                         <DocumentTextIcon className="w-7 h-7" /> 1. 前日のレポートから読み込む
                                     </h3>
-                                    <button onClick={() => setShowPasteArea(!showPasteArea)} className="bg-indigo-700 text-white text-sm font-black px-6 py-2.5 rounded-full shadow-md hover:bg-indigo-800 active:scale-95 transition-all">
+                                    <button type="button" onClick={() => setShowPasteArea(!showPasteArea)} className="bg-indigo-700 text-white text-sm font-black px-6 py-2.5 rounded-full shadow-md hover:bg-indigo-800 active:scale-95 transition-all">
                                         {showPasteArea ? '閉じる' : 'ここを開いてペースト'}
                                     </button>
                                 </div>
@@ -437,7 +456,7 @@ ${report.inquiryRemarks || ''}`;
                                             前日のレポートを貼ると、右側の「累計（藍色）」が自動で埋まります。
                                         </p>
                                         <textarea className="w-full h-48 p-5 text-sm border-2 border-indigo-200 rounded-2xl focus:border-indigo-500 outline-none shadow-inner bg-white text-slate-900 font-mono" placeholder="前日のレポートを全文貼り付け..." value={pasteText} onChange={(e) => setPasteText(e.target.value)}></textarea>
-                                        <button onClick={handleParsePaste} className="w-full bg-indigo-900 text-white font-black py-4 rounded-2xl hover:bg-black shadow-lg flex items-center justify-center gap-2 active:scale-95">
+                                        <button type="button" onClick={handleParsePaste} className="w-full bg-indigo-900 text-white font-black py-4 rounded-2xl hover:bg-black shadow-lg flex items-center justify-center gap-2 active:scale-95">
                                             <ArrowPathIcon className={`w-6 h-6 ${parseStatus !== 'idle' ? 'animate-spin' : ''}`} />
                                             累計数値を読み込む
                                         </button>
@@ -536,7 +555,7 @@ ${report.inquiryRemarks || ''}`;
                                             <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
                                             PREVIEW
                                         </span>
-                                        <button onClick={copyToClipboard} className={`px-6 py-2 rounded-full font-black text-xs transition-all active:scale-95 shadow-lg ${isCopied ? 'bg-emerald-600 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-500'}`}>
+                                        <button type="button" onClick={copyToClipboard} className={`px-6 py-2 rounded-full font-black text-xs transition-all active:scale-95 shadow-lg ${isCopied ? 'bg-emerald-600 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-500'}`}>
                                             {isCopied ? 'コピー完了' : 'レポートをコピー'}
                                         </button>
                                     </div>
@@ -555,7 +574,10 @@ ${report.inquiryRemarks || ''}`;
                                             <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black ${isCopied ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-white'}`}>
                                                 {isCopied ? <CheckIcon className="w-5 h-5" /> : '1'}
                                             </div>
-                                            <p className={`text-sm font-black ${isCopied ? 'text-emerald-900' : 'text-slate-600'}`}>レポートをコピー</p>
+                                            <div className="flex-1">
+                                                <p className={`text-sm font-black ${isCopied ? 'text-emerald-900' : 'text-slate-600'}`}>レポートをコピー</p>
+                                                {isCopied && <p className="text-[10px] text-emerald-600 font-bold">クリップボードに保存済み</p>}
+                                            </div>
                                         </div>
                                         <div className="p-4 rounded-xl border-2 border-slate-200 bg-slate-50 flex items-center gap-4">
                                             <div className="w-8 h-8 rounded-full bg-indigo-900 text-white flex items-center justify-center font-black">2</div>
