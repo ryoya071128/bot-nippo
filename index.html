@@ -133,7 +133,7 @@
             flyer: 'チラシ設置',
             previous: '過去問い合わせ者',
             metaAd: 'メタ広告',
-            unknown: 'その他',
+            unknown: 'その他（備考に記載）',
         };
 
         const UniversalInput = ({ value, onChange, unit, label, theme = 'light' }) => {
@@ -391,13 +391,13 @@
 
 【契約人数】　　 ${report.contractCount ?? 0}人
 
-【契約予定者】　 ${report.contractScheduled ?? 0}人
-
-【インテーク予定】 ${report.intakeScheduled ?? 0}人
-
 【利用人数】　　 ${report.userCount ?? 0}人
 
 【インテーク】　 ${report.intakeCount ?? 0}件
+
+【インテーク予定】 ${report.intakeScheduled ?? 0}人
+
+【契約予定者】　 ${report.contractScheduled ?? 0}人
 
 【利用開始者】　 ${report.newUsers ?? 0}人
 
@@ -528,10 +528,10 @@ ${report.inquiryRemarks || ''}`;
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                       <UniversalInput label="【契約人数】" unit="人" value={report.contractCount} onChange={(v) => handleReportChange('contractCount', v)} />
-                      <UniversalInput label="【契約予定者】" unit="人" value={report.contractScheduled} onChange={(v) => handleReportChange('contractScheduled', v)} />
-                      <UniversalInput label="【インテーク予定】" unit="人" value={report.intakeScheduled} onChange={(v) => handleReportChange('intakeScheduled', v)} />
                       <UniversalInput label="【利用人数】" unit="人" value={report.userCount} onChange={(v) => handleReportChange('userCount', v)} />
                       <UniversalInput label="【インテーク】" unit="件" value={report.intakeCount} onChange={(v) => handleReportChange('intakeCount', v)} />
+                      <UniversalInput label="【インテーク予定】" unit="人" value={report.intakeScheduled} onChange={(v) => handleReportChange('intakeScheduled', v)} />
+                      <UniversalInput label="【契約予定者】" unit="人" value={report.contractScheduled} onChange={(v) => handleReportChange('contractScheduled', v)} />
                       <UniversalInput label="【利用開始者】" unit="人" value={report.newUsers} onChange={(v) => handleReportChange('newUsers', v)} />
 
                       <div className="md:col-span-2 space-y-2 mt-2">
